@@ -1,22 +1,23 @@
 using UnityEngine;
 
+[RequireComponent(typeof(WheelCollider))]
 public class WheelControl : MonoBehaviour
 {
     public Transform wheelModel;
 
     [HideInInspector] public WheelCollider WheelCollider;
-
+    
     // Create properties for the CarControl script
     // (You should enable/disable these via the 
     // Editor Inspector window)
-    public bool steerable;
-    public bool motorized;
+    public bool leftWheel;
+    public bool rightWheel;
 
     Vector3 position;
     Quaternion rotation;
 
     // Start is called before the first frame update
-    private void Start()
+    private void Awake()
     {
         WheelCollider = GetComponent<WheelCollider>();
     }
