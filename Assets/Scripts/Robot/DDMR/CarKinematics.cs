@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
-public class RobotControl : MonoBehaviour
+public class CarKinematics : MonoBehaviour
 {
     [Header("Drive Parameters")]
-    public float maxTorque = 200f;          // max wheel torque
+    public float maxTorque = 50f;          // max wheel torque
     public float maxSpeed = 5f;             // m/s
     public float turnTorque = 150f;         // torque for in-place turn
     public float slowDownRadius = 1f;       // start slowing down
@@ -17,16 +17,27 @@ public class RobotControl : MonoBehaviour
     public List<Vector3> waypoints = new List<Vector3>();
 
     private Rigidbody rb;
-    private List<WheelControl> wheels;
+    private List<WheelControl> wheels; 
 
-    private void Start()
+    private void Awake()
     {
         rb = GetComponent<Rigidbody>();
         wheels = new List<WheelControl>(GetComponentsInChildren<WheelControl>());
+    }
 
-        // initialize waypoints for now 
-        waypoints.Add(new Vector2(53.8f, -28.9f)); 
-        waypoints.Add(new Vector2(56.8f, -1.4f)); 
+    private void Start()
+    {
+        // rb = GetComponent<Rigidbody>();
+        // wheels = new List<WheelControl>(GetComponentsInChildren<WheelControl>());
+
+        // initialize waypoints for now
+        // waypoints.Add(new Vector2(44f, -28.9f));
+        // waypoints.Add(new Vector2(46f, -28.9f)); 
+        // waypoints.Add(new Vector2(48f, -28.9f)); 
+        // waypoints.Add(new Vector2(450f, -28.9f)); 
+        // waypoints.Add(new Vector2(53.8f, -28.9f));
+         
+        // waypoints.Add(new Vector2(56.8f, -1.4f)); 
 
         Debug.Log($"Initial rotation: {transform.rotation.eulerAngles}");
         Debug.Log($"Initial forward: {transform.forward}");
@@ -138,7 +149,47 @@ public class RobotControl : MonoBehaviour
         foreach (var w in wheels)
         {
             w.WheelCollider.motorTorque = 0f;
-            w.WheelCollider.brakeTorque = maxTorque * 5f; // Increase brake torque for faster stopping
+            w.WheelCollider.brakeTorque = maxTorque * 10f; // Increase brake torque for faster stopping
         }
     }
-}
+
+    // PUBLIC UTILITIES
+
+    public IEnumerator rotate(float angle)
+    {
+        float sign = Mathf.Sign(angle);
+        float remainingAngle = Mathf.Abs(angle);
+
+        while (remainingAngle > 1f) // Continue rotating until the remaining angle is small enough
+        {
+            SetWheelTorque(sign * turnTorque, -sign * turnTorque);
+
+            // Update the remaining angle
+            float currentAngle = Vector3.SignedAngle(transform.forward, Quaternion.Euler(0, angle, 0) * Vector3.forward, Vector3.up);
+            remainingAngle = Mathf.Abs(currentAngle);
+        }
+
+        ApplyBrake();
+        yield return new WaitForSeconds(0.1f); // Small delay to ensure the car stabilizes
+    }
+    public void steer(float angle)
+    {
+        float sign = Mathf.Sign(angle);
+        SetWheelTorque(sign * turnTorque, -sign * turnTorque);
+    }
+
+    public void brake(float brakeForce)
+    {
+        rb.velocity = Vector3.Lerp(rb.velocity, Vector3.zero, brakeForce * Time.deltaTime);
+    }
+
+    public void drive()
+    {
+        SetWheelTorque(maxTorque, maxTorque, true);
+    }
+
+    public void driveBackward()
+    {
+        SetWheelTorque(-maxTorque, -maxTorque, true);
+    }
+}   
