@@ -1,133 +1,144 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody))]
 public class RobotControl : MonoBehaviour
 {
-    [Header("Robot Properties")]
-    public float motorTorque = 700;
-    public float brakeTorque = 400;
-    public float maxSpeed = 4f; 
-    public float centreOfGravityOffset = -1f;
+    [Header("Drive Parameters")]
+    public float maxTorque = 200f;          // max wheel torque
+    public float maxSpeed = 5f;             // m/s
+    public float turnTorque = 150f;         // torque for in-place turn
+    public float slowDownRadius = 1f;       // start slowing down
+    public float stopThreshold = 0.2f;      // distance to consider reached
+    public float turnThreshold = 0.5f;      // distance to switch to in-place turn
 
-    private WheelControl[] wheels;
-    private Rigidbody rigidBody;
+    [Header("Waypoints")]
+    public List<Vector3> waypoints = new List<Vector3>();
 
-    private Vector3 targetPoint; // Current target point
-    private bool isMovingToPoint = false; // Flag to indicate if the robot is moving to a point
+    private Rigidbody rb;
+    private List<WheelControl> wheels;
 
-    // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
-        rigidBody = GetComponent<Rigidbody>();
+        rb = GetComponent<Rigidbody>();
+        wheels = new List<WheelControl>(GetComponentsInChildren<WheelControl>());
 
-        // Adjust center of mass to improve stability and prevent rolling
-        Vector3 centerOfMass = rigidBody.centerOfMass;
-        centerOfMass.y += centreOfGravityOffset;
-        rigidBody.centerOfMass = centerOfMass;
+        // initialize waypoints for now 
+        waypoints.Add(new Vector2(53.8f, -28.9f)); 
+        waypoints.Add(new Vector2(56.8f, -1.4f)); 
 
-        // Get all wheel components attached to the robot
-        wheels = GetComponentsInChildren<WheelControl>();
+        Debug.Log($"Initial rotation: {transform.rotation.eulerAngles}");
+        Debug.Log($"Initial forward: {transform.forward}");
+        StartCoroutine(NavigateRoutine());
+    }
 
-        // Example: Move through a series of points
-        Vector3[] points = new Vector3[]
+    private IEnumerator NavigateRoutine()
+    {
+        foreach (Vector2 point in waypoints)
         {
-            new Vector3(55.4f, 2.16f, -29.1f),
-            new Vector3(55.4f, 2.16f, -42.0f),
-            new Vector3(55.4f, 2.16f, -44.0f),
-            new Vector3(61.2f, 2.16f, -44.7f),
-            new Vector3(55.4f, 2.16f, -35.4f)
-        };
-        MoveThroughPoints(points);
+            Vector2 target = point; 
+            Debug.Log($"Navigating to target: {target}");
+
+            yield return StartCoroutine(RotateToTarget(target));
+            yield return StartCoroutine(DriveToTarget(target));
+        }
+        // All done: apply brakes
+        Debug.Log("All waypoints reached. Applying brakes.");
+        ApplyBrake();
     }
 
-    // Method to move the robot to a specific point
-    public void MoveToPoint(Vector3 point)
+    private Vector2 getPosition()
     {
-        targetPoint = point;
-        isMovingToPoint = true;
+        // return position in XZ plane
+        return new Vector2(transform.position.x, transform.position.z);
     }
 
-    public void MoveThroughPoints(Vector3[] points)
+    private Vector2 getForward()
     {
-        StartCoroutine(MoveThroughPointsCoroutine(points));
+        // return forward direction in XZ plane
+        return new Vector2(transform.forward.x, transform.forward.z);
     }
 
-    private System.Collections.IEnumerator MoveThroughPointsCoroutine(Vector3[] points)
+    private IEnumerator RotateToTarget(Vector2 target)
     {
-        foreach (var point in points)
+        Debug.Log($"Rotating to target: {target}");
+        while (true)
         {
-            MoveToPoint(point);
+            // Calculate direction to target in XZ plane
+            Vector2 dirToTarget = target - getPosition();
+            float distance = dirToTarget.magnitude;
+            
+            // Get current forward direction in XZ plane
+            Vector2 currentForward = getForward();
+            
+            // Calculate angle between current forward and target direction
+            float desiredAngle = Vector2.SignedAngle(currentForward, dirToTarget);
+            
+            Debug.Log($"Current forward: {currentForward}, Dir to target: {dirToTarget}, Angle: {desiredAngle}");
+            
+            // Stop rotating if angle is small enough or we're very close to target
+            if (Mathf.Abs(desiredAngle) < 1f || distance < turnThreshold) 
+                break;
 
-            // Wait until the robot reaches the current point
-            while (isMovingToPoint)
-            {
-                yield return null;
-            }
+            // Determine rotation direction
+            float sign = Mathf.Sign(desiredAngle);
+            Debug.Log($"Rotating: Current rotation: {transform.rotation.eulerAngles}, Desired angle: {desiredAngle}");
+            // transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.Euler(0, transform.rotation.eulerAngles.y + desiredAngle, 0), turnTorque * Time.deltaTime);
+            SetWheelTorque(-sign * turnTorque, sign * turnTorque); 
+            yield return new WaitForFixedUpdate();
+        }
+        
+        ApplyBrake();
+        yield return new WaitForSeconds(0.1f);
+    }
+
+    private IEnumerator DriveToTarget(Vector2 target)
+    {
+        Debug.Log($"Driving to target: {target}");
+        while (true)
+        {
+            Vector2 dir = (target - getPosition());
+            float distance = dir.magnitude;
+            Debug.Log($"Distance to target: {distance}, dir: {dir}, Transform.position: {transform.position}");
+            if (distance < stopThreshold) break;
+
+            // Speed factor: 1 at far, <1 when close
+            float speedFactor = Mathf.Clamp01(distance / slowDownRadius);
+            float torque = maxTorque * speedFactor;
+
+            Debug.Log($"Driving: Distance = {distance}, Speed Factor = {speedFactor}, Torque = {torque}");
+            // transform.position = Vector3.MoveTowards(transform.position, target, maxSpeed * Time.deltaTime);
+            SetWheelTorque(torque, torque, true);
+
+            yield return new WaitForFixedUpdate();
+        }
+        Debug.Log("Target reached. Applying brake.");
+        ApplyBrake();
+        yield return new WaitForSeconds(0.1f);
+    }
+
+    private void SetWheelTorque(float leftTorque, float rightTorque, bool movingForward = false)
+    {
+        Debug.Log($"Setting wheel torque: Left = {leftTorque}, Right = {rightTorque}");
+        foreach (var w in wheels)
+        {
+            if (w.leftWheel) w.WheelCollider.motorTorque = leftTorque;
+            else if (w.rightWheel) w.WheelCollider.motorTorque = rightTorque;
+
+            // reduce brakes when accelerating
+            if (movingForward) w.WheelCollider.brakeTorque = 0f; 
+            Debug.Log($"Wheel {w.name}: Left = {w.leftWheel}, Right = {w.rightWheel}, Torque = {w.WheelCollider.motorTorque}");
         }
     }
 
-    // FixedUpdate is called at a fixed time interval
-    void FixedUpdate()
+    private void ApplyBrake()
     {
-        if (isMovingToPoint)
+        Debug.Log("Applying brakes.");
+        foreach (var w in wheels)
         {
-            Vector3 directionToTarget = (targetPoint - transform.position).normalized;
-            float angleToTarget = Vector3.SignedAngle(transform.forward, directionToTarget, Vector3.up);
-            float distanceToTarget = Vector3.Distance(transform.position, targetPoint);
-
-            // Calculate inputs for differential drive
-            float forwardInput = Mathf.Clamp(distanceToTarget / 5f, 0.5f, 1f); // Slow down as distance decreases
-            float turnInput = Mathf.Clamp(angleToTarget / 30f, -1f, 1f); // Adjust turning sensitivity
-
-            if (distanceToTarget < 0.5f)
-            {
-                isMovingToPoint = false;
-                StopRobot();
-                return;
-            }
-
-            ApplyDifferentialDrive(forwardInput, turnInput);
-        }
-        else
-        {
-            // Manual control for testing
-            float forwardInput = Input.GetAxis("Vertical");
-            float turnInput = Input.GetAxis("Horizontal");
-            ApplyDifferentialDrive(forwardInput, turnInput);
-        }
-    }
-
-    // Apply movement using differential drive logic
-    private void ApplyDifferentialDrive(float forwardInput, float turnInput)
-    {
-        foreach (var wheel in wheels)
-        {
-            if (wheel == null || wheel.WheelCollider == null)
-                continue;
-
-            float motorTorqueValue = forwardInput * motorTorque;
-
-            // Differential drive logic: Left wheels get (forward + turn), Right wheels get (forward - turn)
-            if (wheel.leftWheel)
-            {
-                wheel.WheelCollider.motorTorque = motorTorqueValue + (turnInput * motorTorque);
-            }
-            else if (wheel.rightWheel)
-            {
-                wheel.WheelCollider.motorTorque = motorTorqueValue - (turnInput * motorTorque);
-            }
-
-            // No braking unless stopping
-            wheel.WheelCollider.brakeTorque = 0f;
-        }
-    }
-
-    // Helper to stop the robot
-    private void StopRobot()
-    {
-        foreach (var wheel in wheels)
-        {
-            wheel.WheelCollider.motorTorque = 0f;
-            wheel.WheelCollider.brakeTorque = brakeTorque;
+            w.WheelCollider.motorTorque = 0f;
+            w.WheelCollider.brakeTorque = maxTorque * 5f; // Increase brake torque for faster stopping
         }
     }
 }

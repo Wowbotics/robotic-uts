@@ -6,15 +6,11 @@ public class WheelControl : MonoBehaviour
     public Transform wheelModel;
 
     [HideInInspector] public WheelCollider WheelCollider;
-    
-    // Create properties for the CarControl script
+    // Create properties for the RobotControl script
     // (You should enable/disable these via the 
     // Editor Inspector window)
     public bool leftWheel;
     public bool rightWheel;
-
-    Vector3 position;
-    Quaternion rotation;
 
     // Start is called before the first frame update
     private void Awake()
@@ -27,8 +23,8 @@ public class WheelControl : MonoBehaviour
     {
         // Get the Wheel collider's world pose values and
         // use them to set the wheel model's position and rotation
-        WheelCollider.GetWorldPose(out position, out rotation);
-        wheelModel.transform.position = position;
-        wheelModel.transform.rotation = rotation;
+        WheelCollider.GetWorldPose(out Vector3 pos, out Quaternion rot);
+        wheelModel.position = pos;
+        wheelModel.rotation = rot;
     }
 }
