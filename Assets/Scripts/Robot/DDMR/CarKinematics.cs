@@ -13,9 +13,6 @@ public class CarKinematics : MonoBehaviour
     public float stopThreshold = 0.2f;      // distance to consider reached
     public float turnThreshold = 0.5f;      // distance to switch to in-place turn
 
-    [Header("Waypoints")]
-    public List<Vector3> waypoints = new List<Vector3>();
-
     private Rigidbody rb;
     private List<WheelControl> wheels; 
 

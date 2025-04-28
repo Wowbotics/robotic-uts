@@ -40,6 +40,8 @@ public class CarController : MonoBehaviour
         Debug.Log("Update called.");
         LidarScan();
 
+        if (isMoving) return; 
+
         if (currentTarget == null)
         {
             Debug.Log("No current target. Checking bomb queue or do ");
@@ -101,7 +103,7 @@ public class CarController : MonoBehaviour
                     Vector3 worldDir = GridToWorldPosition(dir); 
                     RaycastHit hit;
                     Debug.Log($"Raycasting from {transform.position} to {scanPos} in direction {worldDir}.");
-                    if (Physics.Raycast(transform.position, worldDir, out hit, 1f))
+                    if (Physics.Raycast(transform.position, worldDir, out hit, 2f))
                     {
                         if (hit.collider.CompareTag("Bomb"))
                         {
