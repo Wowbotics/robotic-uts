@@ -28,88 +28,88 @@ public class CarKinematics : MonoBehaviour
         // Debug.Log($"Initial forward: {transform.forward}");
     }
 
-    public IEnumerator NavigateToWaypoints(List<Vector3> worldWaypoints)
-    {
-        // for each waypoint, rotate → drive → brake
-        foreach (var wp in worldWaypoints)
-        {
-            // Debug.Log($"Navigating to target: {wp}");
-            Vector2 wp2D = new Vector2(wp.x, wp.z);
-            yield return StartCoroutine(RotateToTarget(wp2D));
-            yield return StartCoroutine(DriveToTarget(wp2D));
-        }
-        // Debug.Log("All waypoints reached. Applying brakes.");
-        ApplyBrake();
-    }
-    private Vector2 getPosition()
-    {
-        // return position in XZ plane
-        return new Vector2(transform.position.x, transform.position.z);
-    }
+    // public IEnumerator NavigateToWaypoints(List<Vector3> worldWaypoints)
+    // {
+    //     // for each waypoint, rotate → drive → brake
+    //     foreach (var wp in worldWaypoints)
+    //     {
+    //         // Debug.Log($"Navigating to target: {wp}");
+    //         Vector2 wp2D = new Vector2(wp.x, wp.z);
+    //         yield return StartCoroutine(RotateToTarget(wp2D));
+    //         yield return StartCoroutine(DriveToTarget(wp2D));
+    //     }
+    //     // Debug.Log("All waypoints reached. Applying brakes.");
+    //     ApplyBrake();
+    // }
+    // private Vector2 getPosition()
+    // {
+    //     // return position in XZ plane
+    //     return new Vector2(transform.position.x, transform.position.z);
+    // }
 
-    private Vector2 getForward()
-    {
-        // return forward direction in XZ plane
-        return new Vector2(transform.forward.x, transform.forward.z);
-    }
+    // private Vector2 getForward()
+    // {
+    //     // return forward direction in XZ plane
+    //     return new Vector2(transform.forward.x, transform.forward.z);
+    // }
 
-    private IEnumerator RotateToTarget(Vector2 target)
-    {
-        // Debug.Log($"Rotating to target: {target}");
-        while (true)
-        {
-            // Calculate direction to target in XZ plane
-            Vector2 dirToTarget = target - getPosition();
-            float distance = dirToTarget.magnitude;
+    // private IEnumerator RotateToTarget(Vector2 target)
+    // {
+    //     // Debug.Log($"Rotating to target: {target}");
+    //     while (true)
+    //     {
+    //         // Calculate direction to target in XZ plane
+    //         Vector2 dirToTarget = target - getPosition();
+    //         float distance = dirToTarget.magnitude;
             
-            // Get current forward direction in XZ plane
-            Vector2 currentForward = getForward();
+    //         // Get current forward direction in XZ plane
+    //         Vector2 currentForward = getForward();
             
-            // Calculate angle between current forward and target direction
-            float desiredAngle = Vector2.SignedAngle(currentForward, dirToTarget);
+    //         // Calculate angle between current forward and target direction
+    //         float desiredAngle = Vector2.SignedAngle(currentForward, dirToTarget);
             
-            // Debug.Log($"Current forward: {currentForward}, Dir to target: {dirToTarget}, Angle: {desiredAngle}");
+    //         // Debug.Log($"Current forward: {currentForward}, Dir to target: {dirToTarget}, Angle: {desiredAngle}");
             
-            // Stop rotating if angle is small enough or we're very close to target
-            if (Mathf.Abs(desiredAngle) < 1f || distance < turnThreshold) 
-                break;
+    //         // Stop rotating if angle is small enough or we're very close to target
+    //         if (Mathf.Abs(desiredAngle) < 1f || distance < turnThreshold) 
+    //             break;
 
-            // Determine rotation direction
-            float sign = Mathf.Sign(desiredAngle);
-            // Debug.Log($"Rotating: Current rotation: {transform.rotation.eulerAngles}, Desired angle: {desiredAngle}");
-            // transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.Euler(0, transform.rotation.eulerAngles.y + desiredAngle, 0), turnTorque * Time.deltaTime);
-            SetWheelTorque(-sign * turnTorque, sign * turnTorque); 
-            yield return new WaitForFixedUpdate();
-        }
+    //         // Determine rotation direction
+    //         float sign = Mathf.Sign(desiredAngle);
+    //         // Debug.Log($"Rotating: Current rotation: {transform.rotation.eulerAngles}, Desired angle: {desiredAngle}");
+    //         // transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.Euler(0, transform.rotation.eulerAngles.y + desiredAngle, 0), turnTorque * Time.deltaTime);
+    //         SetWheelTorque(-sign * turnTorque, sign * turnTorque); 
+    //         yield return new WaitForFixedUpdate();
+    //     }
         
-        ApplyBrake();
-        yield return new WaitForSeconds(0.1f);
-    }
+    //     ApplyBrake();
+    //     yield return new WaitForSeconds(0.1f);
+    // }
 
-    private IEnumerator DriveToTarget(Vector2 target)
-    {
-        // Debug.Log($"Driving to target: {target}");
-        while (true)
-        {
-            Vector2 dir = (target - getPosition());
-            float distance = dir.magnitude;
-            // Debug.Log($"Distance to target: {distance}, dir: {dir}, Transform.position: {transform.position}");
-            if (distance < stopThreshold) break;
+    // private IEnumerator DriveToTarget(Vector2 target)
+    // {
+    //     // Debug.Log($"Driving to target: {target}");
+    //     while (true)
+    //     {
+    //         Vector2 dir = (target - getPosition());
+    //         float distance = dir.magnitude;
+    //         // Debug.Log($"Distance to target: {distance}, dir: {dir}, Transform.position: {transform.position}");
+    //         if (distance < stopThreshold) break;
 
-            // Speed factor: 1 at far, <1 when close
-            float speedFactor = Mathf.Clamp01(distance / slowDownRadius);
-            float torque = maxTorque * speedFactor;
+    //         // Speed factor: 1 at far, <1 when close
+    //         float speedFactor = Mathf.Clamp01(distance / slowDownRadius);
+    //         float torque = maxTorque * speedFactor;
 
-            // Debug.Log($"Driving: Distance = {distance}, Speed Factor = {speedFactor}, Torque = {torque}");
-            // transform.position = Vector3.MoveTowards(transform.position, target, maxSpeed * Time.deltaTime);
-            SetWheelTorque(torque, torque, true);
+    //         // Debug.Log($"Driving: Distance = {distance}, Speed Factor = {speedFactor}, Torque = {torque}");
+    //         // transform.position = Vector3.MoveTowards(transform.position, target, maxSpeed * Time.deltaTime);
+    //         SetWheelTorque(torque, torque, true);
 
-            yield return new WaitForFixedUpdate();
-        }
-        // Debug.Log("Target reached. Applying brake.");
-        ApplyBrake();
-        yield return new WaitForSeconds(0.1f);
-    }
+    //         yield return new WaitForFixedUpdate();
+    //     }
+    //     // Debug.Log("Target reached. Applying brake.");
+    //     ApplyBrake();
+    //     yield return new WaitForSeconds(0.1f);
+    // }
 
     private void SetWheelTorque(float leftTorque, float rightTorque, bool movingForward = false)
     {
@@ -125,15 +125,39 @@ public class CarKinematics : MonoBehaviour
         }
     }
 
-    private void ApplyBrake()
+    public void ApplyBrake(float brakeTorque = 9999999f)
     {
-        // Debug.Log("Applying brakes.");
         foreach (var w in wheels)
         {
             w.WheelCollider.motorTorque = 0f;
-            w.WheelCollider.brakeTorque = maxTorque * 10f; // Increase brake torque for faster stopping
+            w.WheelCollider.brakeTorque = brakeTorque; // Increase brake torque for faster stopping
         }
+        rb.velocity = new Vector3(0f, 0f, 0f); 
     }
+
+    public void MoveForward()
+    {
+        Debug.Log("Car Move Forward"); 
+        SetWheelTorque(maxTorque, maxTorque, true); 
+        // transform.position = Vector3.MoveTowards(transform.position, target, maxSpeed * Time.deltaTime);
+    }
+
+    public void RotateInPlace(float direction)
+    {
+        Debug.Log("Car Rotating"); 
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.Euler(0, transform.rotation.eulerAngles.y + direction, 0), turnTorque * Time.deltaTime);
+    }
+
+    public void StopForward()
+    {
+        Debug.Log("Car Stop Forward"); 
+        foreach (var w in wheels)
+        {
+            w.WheelCollider.motorTorque = 0f;
+        }
+        rb.velocity = new Vector3(0f, 0f, 0f); 
+    }
+
 
     // PUBLIC UTILITIES
 
@@ -141,6 +165,9 @@ public class CarKinematics : MonoBehaviour
     {
         float sign = Mathf.Sign(angle);
         float targetAngle = transform.eulerAngles.y + angle; // Calculate the target angle relative to the current rotation
+        
+        SetWheelTorque(-maxSpeed, -maxSpeed);
+        yield return new WaitForSeconds(1f);
 
         while (true)
         {
@@ -157,25 +184,6 @@ public class CarKinematics : MonoBehaviour
 
         ApplyBrake();
         yield return new WaitForSeconds(0.1f); // Small delay to ensure the car stabilizes
-    }
-    public void steer(float angle)
-    {
-        float sign = Mathf.Sign(angle);
-        SetWheelTorque(sign * turnTorque, -sign * turnTorque);
-    }
-
-    public void brake(float brakeForce)
-    {
-        rb.velocity = Vector3.Lerp(rb.velocity, Vector3.zero, brakeForce * Time.deltaTime);
-    }
-
-    public void drive()
-    {
-        SetWheelTorque(maxTorque, maxTorque, true);
-    }
-
-    public void driveBackward()
-    {
-        SetWheelTorque(-maxTorque, -maxTorque, true);
+        // transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.Euler(0, transform.rotation.eulerAngles.y + desiredAngle, 0), turnTorque * Time.deltaTime);
     }
 }   

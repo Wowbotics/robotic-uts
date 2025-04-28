@@ -11,13 +11,29 @@ public class CarController : MonoBehaviour
     private Vector2Int? currentTarget = null;
 
     private CarKinematics carKine;
-    private bool isMoving = false;
+
+    private List<Vector2Int> path;
+
+
+    private Queue<SearchBox> boxQueue;
+     private bool isMoving = false;
+    private SearchBox currentBox;
+
+
+    private List<Vector3> searchWaypoints = new List<Vector3>();
+    private int currentWaypointIndex = 0;
+    private int currentIdx = 0;
+
+
+    public float sweepSpacing = 2.0f;  // how far between sweep lines (adjustable)
+    public Vector3 targetGlobal; 
 
     void Start()
     {
         Debug.Log("CarController started.");
         worldManager = FindObjectOfType<WorldManager>();
         carKine = GetComponent<CarKinematics>();
+        boxQueue = new Queue<SearchBox>(worldManager.boxes); 
     }
 
     public bool detectObstacle()
@@ -37,42 +53,194 @@ public class CarController : MonoBehaviour
 
     void Update()
     {
-        Debug.Log("Update called.");
-        LidarScan();
-
         if (isMoving) return; 
+        if (boxQueue.Count == 0) return; 
+        
+        currentBox = boxQueue.Dequeue(); 
+        Vector3 targetPos = currentBox.GetCenter(transform.position.y); // Drive to box center first
+        targetGlobal = targetPos; 
+        StartCoroutine(DriveToBoxCenter());
+        // carKine.MoveForward();  
+    }
 
-        if (currentTarget == null)
-        {
-            Debug.Log("No current target. Checking bomb queue or do ");
-            if (bombQueue.Count > 0)
+    private IEnumerator DriveToBoxCenter()
+    {
+        isMoving = true;
+        // Debug.Log($"Car is moving to box center: {target}"); 
+        path = FindPath(WorldPositionToGrid(transform.position), WorldPositionToGrid(targetGlobal)); 
+        while (true)
+        {   
+            if (path == null) {
+                yield return new WaitForFixedUpdate();
+                continue; 
+            }
+            if (currentIdx >= path.Count) break;
+            Vector2Int target2 = path[currentIdx];
+            Vector3 toTarget = GridToWorldPosition(target2) - transform.position;
+            toTarget.y = 0;
+            float distance = toTarget.magnitude;
+
+            Debug.Log($"Origin: {transform.position}, Target: {target2}, Gap : {toTarget}"); 
+
+            // Debug.Log($"Distance to target: {distance}");
+            SenseForObstacles(); 
+
+            if (distance < 1.1f)
             {
-                currentTarget = bombQueue.Dequeue();
-                Debug.Log($"Dequeued bomb target: {currentTarget}");
+                Debug.Log("Reached box center. Applying brake.");
+                carKine.ApplyBrake();
+                currentIdx++;
+                yield return new WaitForFixedUpdate();
+            }
+
+            // if (Physics.Raycast(transform.position + Vector3.up * 0.5f, transform.forward, out RaycastHit hit, 2f))
+            // {
+            //     Debug.LogWarning("Obstacle detected in front! Stopping before search.");
+            //     carKine.ApplyBrake();
+            //     // rotate left or right 
+            //     carKine.RotateInPlace(90); 
+            //     yield break;
+            // } else {
+            //     carKine.MoveForward(); 
+            // }
+
+            float angle = Vector3.SignedAngle(transform.forward, toTarget.normalized, Vector3.up);
+            // Debug.Log($"Angle to target: {angle}");
+
+            if (Mathf.Abs(angle) > 5f)
+            {
+                float rotateDirection = Mathf.Sign(angle);
+                // Debug.Log($"Rotating in place. Direction: {rotateDirection}");
+                carKine.RotateInPlace(rotateDirection);
+                // carKine.StopForward();
+            }          
+            else
+            {
+                // Debug.Log("Moving forward towards target.");
+                carKine.MoveForward();
+            }
+
+            yield return new WaitForFixedUpdate();
+        }
+
+        Debug.Log("Reached box center. Generating search waypoints.");
+        GenerateSearchWaypoints(currentBox);
+        Debug.Log("Starting search inside box.");
+        StartCoroutine(SearchInsideBox());
+    }
+
+    void SenseForObstacles()
+    {
+        float sensingDistance = 5f; // How far to "see"
+
+        Vector3[] directions = {
+            transform.forward,
+            transform.right,
+            -transform.right,
+            Quaternion.AngleAxis(10, Vector3.up) * transform.forward,
+            Quaternion.AngleAxis(-10, Vector3.up) * transform.forward,
+            Quaternion.AngleAxis(30, Vector3.up) * transform.forward,
+            Quaternion.AngleAxis(-30, Vector3.up) * transform.forward,
+            Quaternion.AngleAxis(60, Vector3.up) * transform.forward,
+            Quaternion.AngleAxis(-60, Vector3.up) * transform.forward,
+            transform.forward + transform.right,
+            transform.forward - transform.right
+        };
+
+        bool obstacleFound = false; 
+        foreach (var dir in directions)
+        {
+            Ray ray = new Ray(transform.position + Vector3.up * 0.7f, dir);
+            if (Physics.Raycast(ray, out RaycastHit hit, sensingDistance))
+            {
+                Debug.Log($"Maybe obstacle at {worldManager.WorldToGrid(WorldPositionToGrid(hit.point))} ---- {worldManager.GetGridValue(WorldPositionToGrid(hit.point))}"); 
+                if (worldManager.GetGridValue(WorldPositionToGrid(hit.point)) == 0)
+                { 
+                    Debug.Log($"Detected new obstacle at {WorldPositionToGrid(hit.point)}");
+                    worldManager.UpdateGrid(WorldPositionToGrid(hit.point), 2);
+                    obstacleFound = true; 
+                }
+            }
+        }
+
+        if (obstacleFound) 
+        {
+            path = FindPath(WorldPositionToGrid(transform.position), WorldPositionToGrid(targetGlobal));
+            currentIdx = 0;
+            carKine.StopForward();
+        }
+    }
+
+    private void GenerateSearchWaypoints(SearchBox box)
+    {
+        searchWaypoints.Clear();
+        currentWaypointIndex = 0;
+
+        int steps = Mathf.FloorToInt(box.getWidth() / sweepSpacing);
+
+        for (int i = 0; i <= steps; i++)
+        {
+            float x = i * sweepSpacing;
+            if (i % 2 == 0)
+            {
+                // Forward line
+                searchWaypoints.Add(box.GetWorldPos(x, 0, transform.position.y));
+                searchWaypoints.Add(box.GetWorldPos(x, box.zSteps, transform.position.y));
             }
             else
             {
-                var next = worldManager.FindNearestUnscannedCell(WorldPositionToGrid(transform.position));
-                if (next.HasValue)
+                // Backward line
+                searchWaypoints.Add(box.GetWorldPos(x, box.zSteps, transform.position.y));
+                searchWaypoints.Add(box.GetWorldPos(x, 0, transform.position.y));
+            }
+        }
+    }
+
+    private IEnumerator SearchInsideBox()
+    {
+        Debug.Log("Starting search inside box...");
+
+        while (currentWaypointIndex < searchWaypoints.Count)
+        {
+            Vector3 target = searchWaypoints[currentWaypointIndex];
+            Vector3 toTarget = target - transform.position;
+            toTarget.y = 0;
+
+            float distance = toTarget.magnitude;
+
+            if (distance < 1f)
+            {
+                currentWaypointIndex++;
+                continue;
+            }
+
+            if (Physics.Raycast(transform.position + Vector3.up * 0.5f, transform.forward, out RaycastHit hit, 2f))
+            {
+                if (hit.collider.CompareTag("Obstacle"))
                 {
-                    currentTarget = next.Value;
-                    Debug.Log($"Nearest unscanned cell set as target: {currentTarget}");
-                }
-                else
-                {
-                    Debug.Log("No unscanned cells found. Exiting Update.");
-                    return;
+                    Debug.LogWarning("Obstacle detected during search! Stopping.");
+                    carKine.ApplyBrake();
+                    yield break;
                 }
             }
-            currentPath = FindPath(WorldPositionToGrid(transform.position), currentTarget.Value);
+
+            float angle = Vector3.SignedAngle(transform.forward, toTarget.normalized, Vector3.up);
+            if (Mathf.Abs(angle) > 5f)
+            {
+                float rotateDirection = Mathf.Sign(angle);
+                carKine.RotateInPlace(rotateDirection);
+                carKine.StopForward();
+            }
+            else
+            {
+                carKine.MoveForward();
+            }
+
+            yield return new WaitForFixedUpdate();
         }
 
-        if (currentTarget != null && currentPath != null && currentPath.Count > 0)
-        {
-            Debug.Log($"Path to target calculated: {string.Join(" -> ", currentPath)}");
-            Debug.Log("Starting movement along path.");
-            StartCoroutine(MoveAlongPath());
-        }
+        Debug.Log("Finished searching the box!");
+        isMoving = false;
     }
 
     private void LidarScan()
@@ -105,7 +273,7 @@ public class CarController : MonoBehaviour
                     Debug.Log($"Raycasting from {transform.position} to {scanPos} in direction {worldDir}.");
                     if (Physics.Raycast(transform.position, worldDir, out hit, 2f))
                     {
-                        if (hit.collider.CompareTag("Bomb"))
+                        if (hit.collider.CompareTag("Bombs"))
                         {
                             Debug.Log($"Bomb detected at {scanPos}");
                             worldManager.UpdateGrid(scanPos, 3); // Bomb
@@ -127,24 +295,24 @@ public class CarController : MonoBehaviour
         }
     }
 
-    private IEnumerator MoveAlongPath()
-    {
-        Debug.Log("Starting movement along path.");
-        isMoving = true;
+    // private IEnumerator MoveAlongPath()
+    // {
+    //     Debug.Log("Starting movement along path.");
+    //     isMoving = true;
 
-        var worldWaypoints = currentPath
-            .Select(g => new Vector3(g.x, transform.position.y, g.y))
-            .ToList();
+    //     var worldWaypoints = currentPath
+    //         .Select(g => new Vector3(g.x, transform.position.y, g.y))
+    //         .ToList();
 
-        Debug.Log($"Navigating to waypoints: {string.Join(", ", worldWaypoints)}");
-        yield return StartCoroutine(carKine.NavigateToWaypoints(worldWaypoints));
+    //     Debug.Log($"Navigating to waypoints: {string.Join(", ", worldWaypoints)}");
+    //     yield return StartCoroutine(carKine.NavigateToWaypoints(worldWaypoints));
 
-        Debug.Log("Path traversal complete.");
+    //     Debug.Log("Path traversal complete.");
 
-        currentPath.Clear();
-        currentTarget = null;
-        isMoving = false;
-    }
+    //     currentPath.Clear();
+    //     currentTarget = null;
+    //     isMoving = false;
+    // }
 
     private Vector2Int WorldPositionToGrid(Vector3 worldPos)
     {
@@ -220,7 +388,7 @@ public class CarController : MonoBehaviour
             if (worldManager.IsInsideGrid(neighbor))
             {
                 int cell = worldManager.GetGridValue(neighbor);
-                if (cell == 1 || cell == 3) // 1 jalan biasa, 3 bom
+                if (cell == 0 || cell == 1 || cell == 3) // 1 jalan biasa, 3 bom
                 {
                     neighbors.Add(neighbor);
                     Debug.Log($"Neighbor {neighbor} added.");

@@ -39,17 +39,17 @@ public class RectangleSpiralDroneController : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        if (rb == null) Debug.LogError("Rigidbody missing!");
+        // if (rb == null) Debug.LogError("Rigidbody missing!");
 
         worldManager = FindObjectOfType<WorldManager>();
         if (worldManager == null)
         {
-            Debug.LogError("WorldManager not found!");
+            // Debug.LogError("WorldManager not found!");
         }
 
         if (searchBoxes.Count == 0)
         {
-            Debug.LogError("No search boxes assigned!");
+            // Debug.LogError("No search boxes assigned!");
             return;
         }
 
@@ -76,7 +76,7 @@ public class RectangleSpiralDroneController : MonoBehaviour
 
         float horizontalDistance = Vector3.Distance(new Vector3(currentTarget.x, 0, currentTarget.z), new Vector3(currentPos.x, 0, currentPos.z));
 
-        Debug.Log($"Current State: {currentState}, Target: {currentTarget}, Position: {currentPos}, Altitude Error: {altitudeError}, Horizontal Distance: {horizontalDistance}");
+        // Debug.Log($"Current State: {currentState}, Target: {currentTarget}, Position: {currentPos}, Altitude Error: {altitudeError}, Horizontal Distance: {horizontalDistance}");
 
         switch (currentState)
         {
@@ -141,7 +141,7 @@ public class RectangleSpiralDroneController : MonoBehaviour
         Vector3 direction = Vector3.down;
 
         Vector2Int gridPos = new Vector2Int(Mathf.RoundToInt(origin.x+18), Mathf.RoundToInt(34-origin.z));
-        Debug.Log("Performing mapping at grid position: " + gridPos);
+        // Debug.Log("Performing mapping at grid position: " + gridPos);
 
         if (worldManager.IsInsideGrid(gridPos))
         {    
@@ -163,7 +163,7 @@ public class RectangleSpiralDroneController : MonoBehaviour
                 if (bombHit.collider.CompareTag("Bombs"))
                 {
                     // Bomb detected
-                    Debug.Log("Bomb detected at: " + bombHit.collider.transform.position);
+                    // Debug.Log("Bomb detected at: " + bombHit.collider.transform.position);
                     worldManager.UpdateGrid(gridPos, 3);
                     bombFoundInCurrentBox = true;
                     MoveToNextBox();
@@ -172,9 +172,9 @@ public class RectangleSpiralDroneController : MonoBehaviour
         }
         else
         {
-            Debug.Log("Tried to update outside the grid!");
+            // Debug.Log("Tried to update outside the grid!");
         }
-        Debug.Log("Grid updated: " + worldManager.GetGridValue(gridPos));
+        // Debug.Log("Grid updated: " + worldManager.GetGridValue(gridPos));
         
     }
 
@@ -183,15 +183,15 @@ public class RectangleSpiralDroneController : MonoBehaviour
         currentBoxIndex++;
         if (currentBoxIndex > searchBoxes.Count)
         {
-            Debug.Log("current box index:" + currentBoxIndex);
-            Debug.Log("jumlah search box: " + searchBoxes.Count);
-            Debug.Log("All boxes searched! Mission complete!");
+            // Debug.Log("current box index:" + currentBoxIndex);
+            // Debug.Log("jumlah search box: " + searchBoxes.Count);
+            // Debug.Log("All boxes searched! Mission complete!");
             currentState = State.Finished;
             finished = true;
             return;
         }
 
-        Debug.Log($"Moving to next search box {currentBoxIndex + 1}");
+        // Debug.Log($"Moving to next search box {currentBoxIndex + 1}");
 
         currentBox = searchBoxes[currentBoxIndex];
         bombFoundInCurrentBox = false;
@@ -252,42 +252,5 @@ public class RectangleSpiralDroneController : MonoBehaviour
 
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position + Vector3.down * detectionDistanceObstacle, detectionRadius);
-    }
-}
-
-[System.Serializable]
-public class SearchBox
-{
-    public Vector2 bottomLeft;
-    public Vector2 bottomRight;
-    public Vector2 topLeft;
-    public Vector2 topRight;
-
-    private Vector3 origin3D => new Vector3(bottomLeft.x, 0, bottomLeft.y);
-    private Vector3 xDir => new Vector3(bottomRight.x - bottomLeft.x, 0, bottomRight.y - bottomLeft.y).normalized;
-    private Vector3 zDir => new Vector3(topLeft.x - bottomLeft.x, 0, topLeft.y - bottomLeft.y).normalized;
-
-    private float width => Vector2.Distance(bottomLeft, bottomRight);
-    private float height => Vector2.Distance(bottomLeft, topLeft);
-
-    public int xSteps => Mathf.FloorToInt(width);
-    public int zSteps => Mathf.FloorToInt(height);
-
-    public Vector3 GetWorldPos(int x, int z, float altitude)
-    {
-        return origin3D + x * xDir + z * zDir + Vector3.up * altitude;
-    }
-
-    public void DrawGizmos(float altitude)
-    {
-        Vector3 bl = new Vector3(bottomLeft.x, altitude, bottomLeft.y);
-        Vector3 br = new Vector3(bottomRight.x, altitude, bottomRight.y);
-        Vector3 tl = new Vector3(topLeft.x, altitude, topLeft.y);
-        Vector3 tr = new Vector3(topRight.x, altitude, topRight.y);
-
-        Gizmos.DrawLine(bl, br);
-        Gizmos.DrawLine(br, tr);
-        Gizmos.DrawLine(tr, tl);
-        Gizmos.DrawLine(tl, bl);
     }
 }
