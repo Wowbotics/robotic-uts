@@ -36,21 +36,6 @@ public class CarController : MonoBehaviour
         boxQueue = new Queue<SearchBox>(worldManager.boxes); 
     }
 
-    public bool detectObstacle()
-    {
-        RaycastHit hit;
-        if (Physics.Raycast(transform.position, transform.forward, out hit, 3f))
-        {
-            Debug.Log("Obstacle detected.");
-            return true; // Ada sesuatu di depan
-        }
-        else
-        {
-            Debug.Log("No obstacle detected.");
-            return false; // Tidak ada rintangan
-        }
-    }
-
     void Update()
     {
         if (isMoving) return; 
@@ -92,17 +77,6 @@ public class CarController : MonoBehaviour
                 currentIdx++;
                 yield return new WaitForFixedUpdate();
             }
-
-            // if (Physics.Raycast(transform.position + Vector3.up * 0.5f, transform.forward, out RaycastHit hit, 2f))
-            // {
-            //     Debug.LogWarning("Obstacle detected in front! Stopping before search.");
-            //     carKine.ApplyBrake();
-            //     // rotate left or right 
-            //     carKine.RotateInPlace(90); 
-            //     yield break;
-            // } else {
-            //     carKine.MoveForward(); 
-            // }
 
             float angle = Vector3.SignedAngle(transform.forward, toTarget.normalized, Vector3.up);
             // Debug.Log($"Angle to target: {angle}");
@@ -242,77 +216,6 @@ public class CarController : MonoBehaviour
         Debug.Log("Finished searching the box!");
         isMoving = false;
     }
-
-    private void LidarScan()
-    {
-        Debug.Log("Performing Lidar scan.");
-        Vector2Int currentPos = WorldPositionToGrid(transform.position);
-
-        Vector2Int[] directions = {
-            new Vector2Int(0, 1),
-            new Vector2Int(1, 0),
-            new Vector2Int(0, -1),
-            new Vector2Int(-1, 0)
-        };
-
-        foreach (var dir in directions)
-        {
-            Vector2Int scanPos = currentPos + dir;
-
-            // Debug.Log($"Scanning direction {dir} from position {currentPos} to {scanPos}.");
-            // Debug.Log($"Is scanPos inside grid? {worldManager.IsInsideGrid(scanPos)}");
-
-            if (worldManager.IsInsideGrid(scanPos))
-            {
-                int cell = worldManager.GetGridValue(scanPos);
-
-                if (cell == 0) // Belum discan
-                {
-                    Vector3 worldDir = GridToWorldPosition(dir); 
-                    RaycastHit hit;
-                    Debug.Log($"Raycasting from {transform.position} to {scanPos} in direction {worldDir}.");
-                    if (Physics.Raycast(transform.position, worldDir, out hit, 2f))
-                    {
-                        if (hit.collider.CompareTag("Bombs"))
-                        {
-                            Debug.Log($"Bomb detected at {scanPos}");
-                            worldManager.UpdateGrid(scanPos, 3); // Bomb
-                            bombQueue.Enqueue(scanPos);
-                        }
-                        else 
-                        {
-                            Debug.Log($"Obstacle detected at {scanPos}");
-                            worldManager.UpdateGrid(scanPos, 2); // Obstacle
-                        }
-                    } 
-                    else
-                    {
-                        Debug.Log($"Path detected at {scanPos}");
-                        worldManager.UpdateGrid(scanPos, 1); // Jalan
-                    }
-                }
-            }
-        }
-    }
-
-    // private IEnumerator MoveAlongPath()
-    // {
-    //     Debug.Log("Starting movement along path.");
-    //     isMoving = true;
-
-    //     var worldWaypoints = currentPath
-    //         .Select(g => new Vector3(g.x, transform.position.y, g.y))
-    //         .ToList();
-
-    //     Debug.Log($"Navigating to waypoints: {string.Join(", ", worldWaypoints)}");
-    //     yield return StartCoroutine(carKine.NavigateToWaypoints(worldWaypoints));
-
-    //     Debug.Log("Path traversal complete.");
-
-    //     currentPath.Clear();
-    //     currentTarget = null;
-    //     isMoving = false;
-    // }
 
     private Vector2Int WorldPositionToGrid(Vector3 worldPos)
     {
