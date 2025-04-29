@@ -8,7 +8,6 @@ public class CarController : MonoBehaviour
     private WorldManager worldManager;
     private Queue<Vector2Int> bombQueue = new Queue<Vector2Int>();
     private List<Vector2Int> currentPath = new List<Vector2Int>();
-    private Vector2Int? currentTarget = null;
 
     private CarKinematics carKine;
 
@@ -18,7 +17,8 @@ public class CarController : MonoBehaviour
     private Queue<SearchBox> boxQueue;
      private bool isMoving = false;
     private SearchBox currentBox;
-
+    private int currentBoxIndex; 
+    private bool isBombFound = false; 
 
     private List<Vector3> searchWaypoints = new List<Vector3>();
     private int currentWaypointIndex = 0;
@@ -26,11 +26,11 @@ public class CarController : MonoBehaviour
 
 
     public float sweepSpacing = 2.0f;  // how far between sweep lines (adjustable)
-    public Vector3 targetGlobal; 
+    public Vector3 targetGlobal; // current target
 
     void Start()
     {
-        Debug.Log("CarController started.");
+        // Debug.Log("CarController started.");
         worldManager = FindObjectOfType<WorldManager>();
         carKine = GetComponent<CarKinematics>();
         boxQueue = new Queue<SearchBox>(worldManager.boxes); 
@@ -41,18 +41,23 @@ public class CarController : MonoBehaviour
         if (isMoving) return; 
         if (boxQueue.Count == 0) return; 
         
+        // isBombFound = false; 
         currentBox = boxQueue.Dequeue(); 
         Vector3 targetPos = currentBox.GetCenter(transform.position.y); // Drive to box center first
         targetGlobal = targetPos; 
         StartCoroutine(DriveToBoxCenter());
-        // carKine.MoveForward();  
+    }
+
+    private void updatePath() 
+    {
+        path = FindPath(WorldPositionToGrid(transform.position), WorldPositionToGrid(targetGlobal)); 
     }
 
     private IEnumerator DriveToBoxCenter()
     {
         isMoving = true;
         // Debug.Log($"Car is moving to box center: {target}"); 
-        path = FindPath(WorldPositionToGrid(transform.position), WorldPositionToGrid(targetGlobal)); 
+        updatePath(); 
         while (true)
         {   
             if (path == null) {
@@ -60,6 +65,11 @@ public class CarController : MonoBehaviour
                 continue; 
             }
             if (currentIdx >= path.Count) break;
+            // if (isBombFound) 
+            // {
+            //     isMoving = false; 
+            //     yield break; 
+            // }
             Vector2Int target2 = path[currentIdx];
             Vector3 toTarget = GridToWorldPosition(target2) - transform.position;
             toTarget.y = 0;
@@ -91,7 +101,15 @@ public class CarController : MonoBehaviour
             else
             {
                 // Debug.Log("Moving forward towards target.");
-                carKine.MoveForward();
+                Ray ray = new Ray(transform.position + Vector3.up * 0.7f, transform.forward);
+                if (Physics.Raycast(ray, out RaycastHit hit, 1f))
+                {
+                    carKine.rotate(45); 
+                }
+                else 
+                {
+                    carKine.MoveForward();
+                }
             }
 
             yield return new WaitForFixedUpdate();
@@ -127,6 +145,13 @@ public class CarController : MonoBehaviour
             Ray ray = new Ray(transform.position + Vector3.up * 0.7f, dir);
             if (Physics.Raycast(ray, out RaycastHit hit, sensingDistance))
             {
+                // if (hit.collider.CompareTag("Bombs")) {
+                //     // bom ketemu, 
+                //     worldManager.handleBombFoundCar(currentBoxIndex); 
+                //     isBombFound = true; 
+                //     return; 
+                // }
+                
                 Debug.Log($"Maybe obstacle at {worldManager.WorldToGrid(WorldPositionToGrid(hit.point))} ---- {worldManager.GetGridValue(WorldPositionToGrid(hit.point))}"); 
                 if (worldManager.GetGridValue(WorldPositionToGrid(hit.point)) == 0)
                 { 
@@ -139,7 +164,7 @@ public class CarController : MonoBehaviour
 
         if (obstacleFound) 
         {
-            path = FindPath(WorldPositionToGrid(transform.position), WorldPositionToGrid(targetGlobal));
+            updatePath(); 
             currentIdx = 0;
             carKine.StopForward();
         }
@@ -158,14 +183,14 @@ public class CarController : MonoBehaviour
             if (i % 2 == 0)
             {
                 // Forward line
-                searchWaypoints.Add(box.GetWorldPos(x, 0, transform.position.y));
-                searchWaypoints.Add(box.GetWorldPos(x, box.zSteps, transform.position.y));
+                searchWaypoints.Add(box.GetWorldPos(x, 0, transform.position.z));
+                searchWaypoints.Add(box.GetWorldPos(x, box.zSteps, transform.position.z));
             }
             else
             {
                 // Backward line
-                searchWaypoints.Add(box.GetWorldPos(x, box.zSteps, transform.position.y));
-                searchWaypoints.Add(box.GetWorldPos(x, 0, transform.position.y));
+                searchWaypoints.Add(box.GetWorldPos(x, box.zSteps, transform.position.z));
+                searchWaypoints.Add(box.GetWorldPos(x, 0, transform.position.z));
             }
         }
     }

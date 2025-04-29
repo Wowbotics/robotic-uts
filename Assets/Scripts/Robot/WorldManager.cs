@@ -7,6 +7,8 @@ public class WorldManager : MonoBehaviour
 
     [Header("Boxes to Search")]
     public List<SearchBox> boxes;
+    public bool[] done;
+    public Vector2 [] bombLocations; 
     private int accuracy = 8;
 
     void Start()
@@ -25,6 +27,10 @@ public class WorldManager : MonoBehaviour
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)
                 grid[x, y] = 0;
+        
+        int bombCount = boxes.Count;  
+        done = new bool[bombCount]; 
+        for (int i = 0; i<bombCount; i++) done[i] = false; 
     }
 
     public Vector2Int WorldToGrid(Vector2 worldPos)
@@ -76,31 +82,14 @@ public class WorldManager : MonoBehaviour
         return grid;
     }
 
-    // public Vector2Int? FindNearestUnscannedCell(Vector2Int worldPos)
-    // {
-    //     // Debug.Log("Finding nearest unscanned cell.");
-    //     var me = worldPos; 
-    //     float bestDist = float.MaxValue;
-    //     Vector2Int? best = null;
-    //     for (int x = 0; x < GetGrid().GetLength(0); x++)
-    //         for (int y = 0; y < GetGrid().GetLength(1); y++)
-    //         {
-    //             var p = new Vector2Int(x, y);
-    //             var pWorld = GridToWorld(p); 
-                
-    //             if (GetGridValue(pWorld) == 0) // unscanned
-    //             {
-    //                 float d = Vector2Int.Distance(me, pWorld);
-    //                 // Debug.Log($"Checking cell {p} coordinate {pWorld}, distance: {d}");
-    //                 if (d < bestDist)
-    //                 {
-    //                     bestDist = d;
-    //                     best = pWorld;
-    //                     // Debug.Log($"New best cell found: {best} with distance: {bestDist}");
-    //                 }
-    //             }
-    //         }
-    //     // Debug.Log($"Nearest unscanned cell: {best}");
-    //     return best;
-    // }
+    public void handleBombFoundDrone(Vector2 worldPos, int bombIndex) 
+    { 
+        bombLocations[bombIndex] = worldPos; 
+        done[bombIndex] = true;
+    }
+
+    public void handleBombFoundCar(int bombIndex) 
+    {
+        done[bombIndex] = true; 
+    }
 }

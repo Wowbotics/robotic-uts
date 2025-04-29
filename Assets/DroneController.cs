@@ -12,8 +12,7 @@ public class RectangleSpiralDroneController : MonoBehaviour
     [SerializeField] private float moveSpeed = 30f;
     [SerializeField] private float altitudeTolerance = 0.2f;
 
-    [Header("Search Areas")]
-    [SerializeField] private List<SearchBox> searchBoxes; // List of boxes to search
+    private List<SearchBox> searchBoxes; // List of boxes to search
     private int currentBoxIndex = 0; // Which box are we searching
 
     private SearchBox currentBox;
@@ -39,19 +38,13 @@ public class RectangleSpiralDroneController : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        // if (rb == null) Debug.LogError("Rigidbody missing!");
+        if (rb == null) Debug.LogError("Rigidbody missing!");
 
         worldManager = FindObjectOfType<WorldManager>();
-        if (worldManager == null)
-        {
-            // Debug.LogError("WorldManager not found!");
-        }
-
-        if (searchBoxes.Count == 0)
-        {
-            // Debug.LogError("No search boxes assigned!");
-            return;
-        }
+        if (worldManager == null) Debug.LogError("WorldManager not found!");
+        
+        searchBoxes = worldManager.boxes; 
+        if (searchBoxes.Count == 0) Debug.LogError("No search boxes assigned!");
 
         currentBox = searchBoxes[currentBoxIndex];
         currentGrid = Vector2Int.zero;
@@ -140,22 +133,22 @@ public class RectangleSpiralDroneController : MonoBehaviour
         Vector3 origin = transform.position;
         Vector3 direction = Vector3.down;
 
-        Vector2Int gridPos = new Vector2Int(Mathf.RoundToInt(origin.x+18), Mathf.RoundToInt(34-origin.z));
-        // Debug.Log("Performing mapping at grid position: " + gridPos);
+        Vector2 worldPos = new Vector2(origin.x, origin.z);
+        // Debug.Log("Performing mapping at grid position: " + worldPos);
 
-        if (worldManager.IsInsideGrid(gridPos))
+        if (worldManager.IsInsideGrid(worldPos))
         {    
             if (Physics.SphereCast(origin, detectionRadius, direction, out obstacleHit, detectionDistanceObstacle))
             {
                 if (obstacleHit.collider.CompareTag("Bombs"))
                 {
-                    worldManager.UpdateGrid(gridPos, 3);
+                    worldManager.UpdateGrid(worldPos, 3);
                 } else {
-                    worldManager.UpdateGrid(gridPos, 2);
+                    worldManager.UpdateGrid(worldPos, 2);
                 }
             } else {
                 // No bomb or obstacle detected
-                worldManager.UpdateGrid(gridPos, 1);
+                worldManager.UpdateGrid(worldPos, 1);
             }
 
             if (Physics.SphereCast(origin, detectionRadius, direction, out bombHit, detectionDistanceBomb))
@@ -164,8 +157,9 @@ public class RectangleSpiralDroneController : MonoBehaviour
                 {
                     // Bomb detected
                     // Debug.Log("Bomb detected at: " + bombHit.collider.transform.position);
-                    worldManager.UpdateGrid(gridPos, 3);
+                    worldManager.UpdateGrid(worldPos, 3);
                     bombFoundInCurrentBox = true;
+                    // worldManager.handleBombFoundDrone(worldPos, currentBoxIndex); 
                     MoveToNextBox();
                 }
             }
